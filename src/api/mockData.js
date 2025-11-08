@@ -201,6 +201,36 @@ export const homepageData = {
   ],
 }
 
+export const authRegisterSuccess = {
+  message: 'User registered successfully',
+  data: {
+    user: {
+      email: 'newuser@test.com',
+      username: 'newuser',
+      role: 'user',
+      subscription_type: 'standard',
+      is_active: true,
+    },
+    token:
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNzQ2MzU5ZTItZTU3ZS00NDFlLTlkMDgtMmQ2OTUyZTQ2ZmYwIiwiZW1haWwiOiJuZXd1c2VyQHRlc3QuY29tIiwidXNlcm5hbWUiOiJuZXd1c2VyIiwicm9sZSI6InVzZXIiLCJleHAiOjE3NjI2MzkxMTQsIm5iZiI6MTc2MjU1MjcxNCwiaWF0IjoxNzYyNTUyNzE0fQ.MAfzMyhMLdk8PhViirTIE3DXeeQptfjGTklzkKE7vBY',
+  },
+}
+
+export const authLoginSuccess = {
+  message: 'Login successful',
+  data: {
+    user: {
+      email: 'premimum@user.com',
+      username: 'premiumtestuser',
+      role: 'user',
+      subscription_type: 'premium',
+      is_active: true,
+    },
+    token:
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzMzMjZkNGMtOWQ4Mi00NjNjLWI0ZGQtNDUxMmRhMDdmZmQxIiwiZW1haWwiOiJwcmVtaW11bUB1c2VyLmNvbSIsInVzZXJuYW1lIjoicHJlbWl1bXRlc3R1c2VyIiwicm9sZSI6InVzZXIiLCJleHAiOjE3NjI2NDA0MjEsIm5iZiI6MTc2MjU1NDAyMSwiaWF0IjoxNzYyNTU0MDIxfQ.Jvc8wRuCRZ6GlyLPcfOJK34LLg1a21SezLOVnqbDCtc',
+  },
+}
+
 export const categoriesData = {
   categories: [
     {

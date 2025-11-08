@@ -2,6 +2,7 @@ import { Link, Routes, Route } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react'
 import HomePage from './pages/HomePage'
 import SeriesDetailPage from './pages/SeriesDetailPage'
+import AuthModal from './components/AuthModal'
 import { fetchCategories } from './api/mediaService'
 import './App.css'
 
@@ -91,7 +92,7 @@ const renderNavIcon = (slug) => {
   return <span className="nav-icon__dot" />
 }
 
-function Header({ categories }) {
+function Header({ categories, activeCategory, onOpenAuth, onSelectCategory }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const toggleMobileMenu = () => {
@@ -135,9 +136,9 @@ function Header({ categories }) {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [mobileMenuOpen])
 
-  const platformCategories = useMemo(() => {
-    if (!categories || !categories.length) {
-      return fallbackPlatformCategories
+  const normalizedCategories = useMemo(() => {
+    if (!Array.isArray(categories) || !categories.length) {
+      return []
     }
     const unique = new Map()
     categories.forEach((category, index) => {
@@ -145,24 +146,68 @@ function Header({ categories }) {
       if (!name) {
         return
       }
-      const slug = getCategorySlug(category) || `platform-${index}`
+      const slug = getCategorySlug(category) || `category-${index}`
+      const id =
+        category.id ??
+        category.ID ??
+        category.category_id ??
+        category.CategoryID ??
+        category.Id ??
+        category.uuid ??
+        null
       if (!unique.has(slug)) {
-        unique.set(slug, { slug, name })
+        unique.set(slug, { id, slug, name, raw: category })
       }
     })
-    const normalized = Array.from(unique.values())
-    return normalized.length ? normalized.slice(0, 12) : fallbackPlatformCategories
+    return Array.from(unique.values())
   }, [categories])
+
+  const platformCategories = useMemo(() => {
+    if (!normalizedCategories.length) {
+      return fallbackPlatformCategories.map((item, index) => ({
+        id: null,
+        slug: item.slug || `platform-${index}`,
+        name: item.name,
+        raw: null,
+      }))
+    }
+    return normalizedCategories.slice(0, 12)
+  }, [normalizedCategories])
+
+  const isActiveCategory = (category) => Boolean(category?.id) && activeCategory?.id === category.id
+
+  const handleCategoryActivate = (category, event) => {
+    if (event) {
+      event.preventDefault()
+    }
+    closeMobileMenu()
+    if (!onSelectCategory) {
+      return
+    }
+    if (!category?.id) {
+      onSelectCategory(null)
+      return
+    }
+    if (activeCategory?.id === category.id) {
+      onSelectCategory(null)
+    } else {
+      onSelectCategory(category)
+    }
+  }
+
+  const handleLoginClick = (event) => {
+    event.preventDefault()
+    closeMobileMenu()
+    onOpenAuth?.('login')
+  }
 
   return (
     <header className={`header ${mobileMenuOpen ? 'header--open' : ''}`}>
       <div className="container header__bar">
         <h1 className="logo" data-request="">
           <Link to="/">
-            <span className="icon" aria-hidden>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512.3 573.5" role="img">
-                <path d="M0,12.1C47.8,4.4,112.3,0,178.9,0c107.9,0,175.6,17.5,231.5,55.9,62,42.8,101.9,112.9,101.9,216.3,0,114.6-43.4,189.1-98.3,231.9-61.9,48.1-154.1,69.4-264.1,69.4C77.7,573.5,28.8,568.7,0,564.3V12.1ZM150.5,454.7c7.9,1.7,21.7,1.7,31.9,1.7,97.7,1.3,169.9-52.4,169.9-179.3,0-110-65.5-161.8-155.9-161.8-23.6,0-38.2,1.9-45.9,3.8V454.7Z" />
-              </svg>
+            <span className="icon icon--badge" aria-hidden>
+              D
             </span>
             <span>dizipal</span>
           </Link>
@@ -172,7 +217,11 @@ function Header({ categories }) {
           <ul>
             {fallbackPrimaryNav.map((item) => (
               <li key={item.slug}>
-                <a href={`#${item.slug}`}>
+                <a
+                  href={`#${item.slug}`}
+                  onClick={(event) => handleCategoryActivate(null, event)}
+                  className={!activeCategory ? 'is-active' : ''}
+                >
                   <span className="nav-icon" aria-hidden>
                     {renderNavIcon(item.slug)}
                   </span>
@@ -191,7 +240,12 @@ function Header({ categories }) {
                   Platformlar
                   <div className="drop">
                     {platformCategories.map((platform) => (
-                      <a href={`#${platform.slug}`} key={platform.slug}>
+                      <a
+                        href={`#${platform.slug}`}
+                        key={platform.slug}
+                        onClick={(event) => handleCategoryActivate(platform, event)}
+                        className={isActiveCategory(platform) ? 'is-active' : ''}
+                      >
                         {platform.name}
                       </a>
                     ))}
@@ -203,14 +257,6 @@ function Header({ categories }) {
         </nav>
 
         <div className="header__actions">
-          <button className="header__action header__action--search" type="button" aria-label="Ara">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                fill="currentColor"
-                d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C8.01 14 6 11.99 6 9.5S8.01 5 10.5 5 15 7.01 15 9.5 12.99 14 10.5 14z"
-              />
-            </svg>
-          </button>
           <button
             className={`header__action header__action--burger ${mobileMenuOpen ? 'is-open' : ''}`}
             type="button"
@@ -222,7 +268,7 @@ function Header({ categories }) {
             <span />
             <span />
           </button>
-          <a href="#login" className="header__login">
+          <a href="#login" className="header__login" onClick={handleLoginClick}>
             Giriş yap
           </a>
         </div>
@@ -241,7 +287,11 @@ function Header({ categories }) {
             <ul>
               {fallbackPrimaryNav.map((item) => (
                 <li key={`mobile-${item.slug}`}>
-                  <a href={`#${item.slug}`} onClick={closeMobileMenu}>
+                  <a
+                    href={`#${item.slug}`}
+                    onClick={(event) => handleCategoryActivate(null, event)}
+                    className={!activeCategory ? 'is-active' : ''}
+                  >
                     <span className="nav-icon" aria-hidden>
                       {renderNavIcon(item.slug)}
                     </span>
@@ -258,7 +308,12 @@ function Header({ categories }) {
               {platformCategories.map((platform, index) => {
                 const slug = platform.slug || `platform-${index}`
                 return (
-                  <a href={`#${slug}`} key={`mobile-platform-${slug}`} onClick={closeMobileMenu}>
+                  <a
+                    href={`#${slug}`}
+                    key={`mobile-platform-${slug}`}
+                    onClick={(event) => handleCategoryActivate(platform, event)}
+                    className={isActiveCategory(platform) ? 'is-active' : ''}
+                  >
                     {platform.name}
                   </a>
                 )
@@ -267,7 +322,7 @@ function Header({ categories }) {
           </div>
 
           <div className="mobile-nav__section mobile-nav__footer">
-            <a href="#login" className="mobile-nav__login" onClick={closeMobileMenu}>
+            <a href="#login" className="mobile-nav__login" onClick={handleLoginClick}>
               Giriş yap
             </a>
           </div>
@@ -297,6 +352,8 @@ function App() {
   }, [])
 
   const [categories, setCategories] = useState([])
+  const [activeCategory, setActiveCategory] = useState(null)
+  const [authMode, setAuthMode] = useState(null)
 
   useEffect(() => {
     let ignore = false
@@ -327,15 +384,26 @@ function App() {
 
   return (
     <div className="page">
-      <Header categories={categories} />
+      <Header
+        categories={categories}
+        activeCategory={activeCategory}
+        onOpenAuth={setAuthMode}
+        onSelectCategory={setActiveCategory}
+      />
       <Routes>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<HomePage selectedCategory={activeCategory} />} />
         <Route path="/series/:seriesId" element={<SeriesDetailPage />} />
       </Routes>
+      {authMode && (
+        <AuthModal
+          mode={authMode}
+          onClose={() => setAuthMode(null)}
+          onSwitchMode={(nextMode) => setAuthMode(nextMode)}
+        />
+      )}
       <Footer />
     </div>
   )
 }
 
 export default App
-

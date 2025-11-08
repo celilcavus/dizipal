@@ -1,5 +1,5 @@
 import client from './client'
-import { fetchSeriesDetail, fetchSeriesList } from './seriesService'
+import { fetchSeriesByCategory, fetchSeriesDetail, fetchSeriesList } from './seriesService'
 
 export async function fetchHomepage() {
   const response = await client.get('/homepage')
@@ -28,5 +28,5 @@ export async function fetchVideoDetail(videoId) {
   return response.data
 }
 
-export { fetchSeriesList, fetchSeriesDetail }
+export { fetchSeriesList, fetchSeriesDetail, fetchSeriesByCategory }
 

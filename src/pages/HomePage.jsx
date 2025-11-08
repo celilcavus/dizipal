@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchHomepage, fetchSeriesList, fetchVideosList } from '../api/mediaService'
+import { fetchHomepage, fetchSeriesByCategory, fetchSeriesList, fetchVideosList } from '../api/mediaService'
 
 function SectionTitle({ title, linkLabel, linkHref }) {
   return (
@@ -40,9 +40,9 @@ function TrendGrid({ items = [], onSelect }) {
   )
 }
 
-function PosterGrid({ items = [], onSelect }) {
+function PosterGrid({ items = [], onSelect, emptyMessage = 'İçerik henüz eklenmedi.' }) {
   if (!items.length) {
-    return <div className="loading-state">İçerik henüz eklenmedi.</div>
+    return <div className="loading-state">{emptyMessage}</div>
   }
 
   return (
@@ -105,13 +105,29 @@ function EpisodeGrid({ items = [], onSelect }) {
   )
 }
 
-function HomePage() {
+const mapSeriesItems = (series = []) =>
+  series.map((item) => ({
+    id: item.ID,
+    slug: item.Slug,
+    title: item.Title,
+    image: item.PosterURL,
+    detailId: item.ID ? String(item.ID) : item.Slug,
+    releaseYear: item.ReleaseYear,
+    description: item.Description,
+    raw: item,
+    type: 'series',
+  }))
+
+function HomePage({ selectedCategory = null }) {
   const navigate = useNavigate()
   const [homepage, setHomepage] = useState(null)
   const [homepageLoading, setHomepageLoading] = useState(true)
 
   const [seriesList, setSeriesList] = useState([])
   const [seriesLoading, setSeriesLoading] = useState(false)
+  const [categorySeries, setCategorySeries] = useState([])
+  const [categoryLoading, setCategoryLoading] = useState(false)
+  const [categoryError, setCategoryError] = useState(null)
   const [videosList, setVideosList] = useState([])
   const [videosLoading, setVideosLoading] = useState(false)
 
@@ -151,17 +167,7 @@ function HomePage() {
         if (ignore) {
           return
         }
-        const mapped = (data.series ?? []).map((item) => ({
-          id: item.ID,
-          slug: item.Slug,
-          title: item.Title,
-          image: item.PosterURL,
-          detailId: item.ID ? String(item.ID) : item.Slug,
-          releaseYear: item.ReleaseYear,
-          description: item.Description,
-          raw: item,
-          type: 'series',
-        }))
+        const mapped = mapSeriesItems(data.series ?? [])
         setSeriesList(mapped)
       } catch (error) {
         console.error('Dizi listesi yüklenirken hata oluştu', error)
@@ -178,6 +184,52 @@ function HomePage() {
       ignore = true
     }
   }, [])
+
+  useEffect(() => {
+    let ignore = false
+
+    if (!selectedCategory?.id) {
+      setCategorySeries([])
+      setCategoryError(null)
+      setCategoryLoading(false)
+      return () => {
+        ignore = true
+      }
+    }
+
+    async function loadCategorySeries() {
+      try {
+        if (!ignore) {
+          setCategoryLoading(true)
+          setCategoryError(null)
+          setCategorySeries([])
+        }
+        const data = await fetchSeriesByCategory(selectedCategory.id, { limit: 20, offset: 0 })
+        if (ignore) {
+          return
+        }
+        const mapped = mapSeriesItems(data.series ?? [])
+        setCategorySeries(mapped)
+      } catch (error) {
+        if (ignore) {
+          return
+        }
+        console.error('Kategori dizileri yüklenirken hata oluştu', error)
+        setCategoryError('Bu kategoride içerik yüklenirken bir sorun oluştu.')
+        setCategorySeries([])
+      } finally {
+        if (!ignore) {
+          setCategoryLoading(false)
+        }
+      }
+    }
+
+    loadCategorySeries()
+
+    return () => {
+      ignore = true
+    }
+  }, [selectedCategory?.id])
 
   useEffect(() => {
     let ignore = false
@@ -242,7 +294,25 @@ function HomePage() {
     '--hero-bg': hero ? `url(${hero.backdrop})` : 'none',
   }
 
-  const displaySeries = seriesList.length ? seriesList : homepage?.newSeries ?? []
+  const isCategoryActive = Boolean(selectedCategory?.id)
+  const categoryName =
+    selectedCategory?.name ??
+    selectedCategory?.Name ??
+    selectedCategory?.title ??
+    selectedCategory?.Title ??
+    selectedCategory?.label ??
+    ''
+  const displaySeries = isCategoryActive
+    ? categorySeries
+    : seriesList.length
+      ? seriesList
+      : homepage?.newSeries ?? []
+  const seriesLoadingState = isCategoryActive ? categoryLoading : seriesLoading
+  const seriesErrorState = isCategoryActive ? categoryError : null
+  const seriesEmptyMessage = isCategoryActive ? 'Bu kategoride içerik bulunamadı.' : 'İçerik henüz eklenmedi.'
+  const seriesSectionTitle = isCategoryActive
+    ? `${categoryName || 'Kategori'} içerikleri`
+    : 'Yeni diziler'
   const displayMovies = videosList.length ? videosList : homepage?.newMovies ?? []
 
   return (
@@ -285,11 +355,17 @@ function HomePage() {
             </section>
 
             <section className="module">
-              <SectionTitle title="Yeni diziler" linkLabel="Tümü" linkHref="#diziler" />
-              {seriesLoading && !seriesList.length ? (
+              <SectionTitle title={seriesSectionTitle} linkLabel="Tümü" linkHref="#diziler" />
+              {seriesLoadingState ? (
                 <div className="loading-state">Diziler yükleniyor...</div>
+              ) : seriesErrorState ? (
+                <div className="loading-state">{seriesErrorState}</div>
               ) : (
-                <PosterGrid items={displaySeries} onSelect={handleNavigate} />
+                <PosterGrid
+                  items={displaySeries}
+                  onSelect={handleNavigate}
+                  emptyMessage={seriesEmptyMessage}
+                />
               )}
             </section>
 
