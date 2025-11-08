@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchHomepage, fetchSeriesByCategory, fetchSeriesList, fetchVideosList } from '../api/mediaService'
+import { fetchHomepage, fetchSeriesByCategory, fetchSeriesList, fetchVideosByCategory, fetchVideosList } from '../api/mediaService'
 
 function SectionTitle({ title, linkLabel, linkHref }) {
   return (
@@ -118,7 +118,11 @@ const mapSeriesItems = (series = []) =>
     type: 'series',
   }))
 
-function HomePage({ selectedCategory = null }) {
+function HomePage({
+  selectedCategory = null,
+  primaryNavSelection = { slug: 'filmler', version: 0 },
+  animeCategory = null,
+}) {
   const navigate = useNavigate()
   const [homepage, setHomepage] = useState(null)
   const [homepageLoading, setHomepageLoading] = useState(true)
@@ -130,6 +134,12 @@ function HomePage({ selectedCategory = null }) {
   const [categoryError, setCategoryError] = useState(null)
   const [videosList, setVideosList] = useState([])
   const [videosLoading, setVideosLoading] = useState(false)
+  const [animeSeries, setAnimeSeries] = useState([])
+  const [animeSeriesLoading, setAnimeSeriesLoading] = useState(false)
+  const [animeSeriesError, setAnimeSeriesError] = useState(null)
+  const [animeVideos, setAnimeVideos] = useState([])
+  const [animeVideosLoading, setAnimeVideosLoading] = useState(false)
+  const [animeVideosError, setAnimeVideosError] = useState(null)
 
   useEffect(() => {
     let ignore = false
@@ -157,14 +167,12 @@ function HomePage({ selectedCategory = null }) {
     }
   }, [])
 
-  useEffect(() => {
-    let ignore = false
-
-    async function loadSeries() {
+  const loadSeries = useCallback(
+    async (ignoreRef) => {
       try {
         setSeriesLoading(true)
         const data = await fetchSeriesList({ limit: 20, offset: 0 })
-        if (ignore) {
+        if (ignoreRef?.current) {
           return
         }
         const mapped = mapSeriesItems(data.series ?? [])
@@ -172,18 +180,21 @@ function HomePage({ selectedCategory = null }) {
       } catch (error) {
         console.error('Dizi listesi yüklenirken hata oluştu', error)
       } finally {
-        if (!ignore) {
+        if (!ignoreRef?.current) {
           setSeriesLoading(false)
         }
       }
-    }
+    },
+    [],
+  )
 
-    loadSeries()
-
+  useEffect(() => {
+    const ignore = { current: false }
+    loadSeries(ignore)
     return () => {
-      ignore = true
+      ignore.current = true
     }
-  }, [])
+  }, [loadSeries])
 
   useEffect(() => {
     let ignore = false
@@ -234,6 +245,12 @@ function HomePage({ selectedCategory = null }) {
   useEffect(() => {
     let ignore = false
 
+    if (primaryNavSelection?.slug !== 'filmler') {
+      return () => {
+        ignore = true
+      }
+    }
+
     async function loadVideos() {
       try {
         setVideosLoading(true)
@@ -267,7 +284,93 @@ function HomePage({ selectedCategory = null }) {
     return () => {
       ignore = true
     }
-  }, [])
+  }, [primaryNavSelection?.slug, primaryNavSelection?.version])
+
+  useEffect(() => {
+    if (primaryNavSelection?.slug !== 'diziler') {
+      return undefined
+    }
+    const ignore = { current: false }
+    loadSeries(ignore)
+    return () => {
+      ignore.current = true
+    }
+  }, [primaryNavSelection?.slug, primaryNavSelection?.version, loadSeries])
+
+  useEffect(() => {
+    if (primaryNavSelection?.slug !== 'animeler') {
+      return undefined
+    }
+
+    if (!animeCategory?.id) {
+      setAnimeSeries([])
+      setAnimeSeriesError('Anime kategorisi bulunamadı.')
+      setAnimeVideos([])
+      setAnimeVideosError('Anime kategorisi bulunamadı.')
+      return undefined
+    }
+
+    const ignore = { current: false }
+
+    const loadAnimeData = async () => {
+      setAnimeSeriesLoading(true)
+      setAnimeSeriesError(null)
+      setAnimeSeries([])
+      setAnimeVideosLoading(true)
+      setAnimeVideosError(null)
+      setAnimeVideos([])
+
+      try {
+        const data = await fetchSeriesByCategory(animeCategory.id, { limit: 20, offset: 0 })
+        if (!ignore.current) {
+          const mapped = mapSeriesItems(data.series ?? [])
+          setAnimeSeries(mapped)
+        }
+      } catch (error) {
+        console.error('Anime dizileri yüklenirken hata oluştu', error)
+        if (!ignore.current) {
+          setAnimeSeriesError('Anime dizileri yüklenemedi.')
+        }
+      } finally {
+        if (!ignore.current) {
+          setAnimeSeriesLoading(false)
+        }
+      }
+
+      try {
+        const data = await fetchVideosByCategory(animeCategory.id, { page: 1, limit: 20 })
+        if (!ignore.current) {
+          const mapped = (data.videos ?? []).map((item) => ({
+            id: item.id,
+            slug: item.slug,
+            title: item.title,
+            image: item.thumbnail_url,
+            detailId: item.id,
+            description: item.description,
+            videoUrl: item.r2_url,
+            raw: item,
+            type: 'video',
+          }))
+          setAnimeVideos(mapped)
+        }
+      } catch (error) {
+        console.error('Anime filmleri yüklenirken hata oluştu', error)
+        if (!ignore.current) {
+          setAnimeVideosError('Anime filmleri yüklenemedi.')
+        }
+      } finally {
+        if (!ignore.current) {
+          setAnimeVideosLoading(false)
+        }
+      }
+    }
+
+    loadAnimeData()
+
+    return () => {
+      ignore.current = true
+    }
+  }, [primaryNavSelection?.slug, primaryNavSelection?.version, animeCategory?.id])
 
   const handleNavigate = (item) => {
     if (!item) {
@@ -314,6 +417,9 @@ function HomePage({ selectedCategory = null }) {
     ? `${categoryName || 'Kategori'} içerikleri`
     : 'Yeni diziler'
   const displayMovies = videosList.length ? videosList : homepage?.newMovies ?? []
+  const isFilmsView = primaryNavSelection?.slug === 'filmler'
+  const isSeriesView = primaryNavSelection?.slug === 'diziler'
+  const isAnimeView = primaryNavSelection?.slug === 'animeler'
 
   return (
     <>
@@ -345,7 +451,56 @@ function HomePage({ selectedCategory = null }) {
       </div>
 
       <main className="container main">
-        {homepageLoading ? (
+        {isFilmsView ? (
+          <section className="module">
+            <SectionTitle title="Filmler" linkLabel="Tümü" linkHref="#filmler" />
+            {videosLoading && !videosList.length ? (
+              <div className="loading-state">Filmler yükleniyor...</div>
+            ) : (
+              <PosterGrid items={displayMovies} onSelect={handleNavigate} emptyMessage="Film bulunamadı." />
+            )}
+          </section>
+        ) : isSeriesView ? (
+          <section className="module">
+            <SectionTitle title="Diziler" linkLabel="Tümü" linkHref="#diziler" />
+            {seriesLoading ? (
+              <div className="loading-state">Diziler yükleniyor...</div>
+            ) : (
+              <PosterGrid items={seriesList} onSelect={handleNavigate} emptyMessage="Dizi bulunamadı." />
+            )}
+          </section>
+        ) : isAnimeView ? (
+          <>
+            <section className="module">
+              <SectionTitle title="Anime Dizileri" linkLabel="Tümü" linkHref="#anime-dizileri" />
+              {animeSeriesLoading ? (
+                <div className="loading-state">Anime dizileri yükleniyor...</div>
+              ) : animeSeriesError ? (
+                <div className="loading-state">{animeSeriesError}</div>
+              ) : (
+                <PosterGrid
+                  items={animeSeries}
+                  onSelect={handleNavigate}
+                  emptyMessage="Anime dizisi bulunamadı."
+                />
+              )}
+            </section>
+            <section className="module">
+              <SectionTitle title="Anime Filmleri" linkLabel="Tümü" linkHref="#anime-filmleri" />
+              {animeVideosLoading ? (
+                <div className="loading-state">Anime filmleri yükleniyor...</div>
+              ) : animeVideosError ? (
+                <div className="loading-state">{animeVideosError}</div>
+              ) : (
+                <PosterGrid
+                  items={animeVideos}
+                  onSelect={handleNavigate}
+                  emptyMessage="Anime filmi bulunamadı."
+                />
+              )}
+            </section>
+          </>
+        ) : homepageLoading ? (
           <div className="loading-state">İçerik yükleniyor...</div>
         ) : (
           <>

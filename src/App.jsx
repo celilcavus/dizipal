@@ -2,6 +2,7 @@ import { Link, Routes, Route } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react'
 import HomePage from './pages/HomePage'
 import SeriesDetailPage from './pages/SeriesDetailPage'
+import VideoDetailPage from './pages/VideoDetailPage'
 import AuthModal from './components/AuthModal'
 import { fetchCategories } from './api/mediaService'
 import './App.css'
@@ -92,7 +93,7 @@ const renderNavIcon = (slug) => {
   return <span className="nav-icon__dot" />
 }
 
-function Header({ categories, activeCategory, onOpenAuth, onSelectCategory }) {
+function Header({ categories, activeCategory, activePrimaryNav, onOpenAuth, onSelectCategory, onPrimaryNavSelect }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const toggleMobileMenu = () => {
@@ -195,17 +196,28 @@ function Header({ categories, activeCategory, onOpenAuth, onSelectCategory }) {
     }
   }
 
+  const handlePrimaryNavClick = (item, event) => {
+    handleCategoryActivate(null, event)
+    onPrimaryNavSelect?.(item.slug)
+  }
+
   const handleLoginClick = (event) => {
     event.preventDefault()
     closeMobileMenu()
     onOpenAuth?.('login')
   }
 
+  const handleLogoClick = () => {
+    closeMobileMenu()
+    onSelectCategory?.(null)
+    onPrimaryNavSelect?.('/')
+  }
+
   return (
     <header className={`header ${mobileMenuOpen ? 'header--open' : ''}`}>
       <div className="container header__bar">
         <h1 className="logo" data-request="">
-          <Link to="/">
+          <Link to="/" onClick={handleLogoClick}>
             <span className="icon icon--badge" aria-hidden>
               D
             </span>
@@ -219,8 +231,8 @@ function Header({ categories, activeCategory, onOpenAuth, onSelectCategory }) {
               <li key={item.slug}>
                 <a
                   href={`#${item.slug}`}
-                  onClick={(event) => handleCategoryActivate(null, event)}
-                  className={!activeCategory ? 'is-active' : ''}
+                  onClick={(event) => handlePrimaryNavClick(item, event)}
+                  className={activePrimaryNav === item.slug ? 'is-active' : ''}
                 >
                   <span className="nav-icon" aria-hidden>
                     {renderNavIcon(item.slug)}
@@ -289,8 +301,8 @@ function Header({ categories, activeCategory, onOpenAuth, onSelectCategory }) {
                 <li key={`mobile-${item.slug}`}>
                   <a
                     href={`#${item.slug}`}
-                    onClick={(event) => handleCategoryActivate(null, event)}
-                    className={!activeCategory ? 'is-active' : ''}
+                    onClick={(event) => handlePrimaryNavClick(item, event)}
+                    className={activePrimaryNav === item.slug ? 'is-active' : ''}
                   >
                     <span className="nav-icon" aria-hidden>
                       {renderNavIcon(item.slug)}
@@ -354,6 +366,8 @@ function App() {
   const [categories, setCategories] = useState([])
   const [activeCategory, setActiveCategory] = useState(null)
   const [authMode, setAuthMode] = useState(null)
+  const [primaryNavSelection, setPrimaryNavSelection] = useState({ slug: 'filmler', version: 0 })
+  const [animeCategory, setAnimeCategory] = useState(null)
 
   useEffect(() => {
     let ignore = false
@@ -370,6 +384,25 @@ function App() {
             ? data
             : []
         setCategories(incoming)
+        const animeItem = incoming.find((item) => {
+          const name = getCategoryName(item).toLowerCase()
+          const slug = getCategorySlug(item)
+          return name.includes('anime') || slug.includes('anime')
+        })
+        if (animeItem) {
+          setAnimeCategory({
+            id:
+              animeItem.id ??
+              animeItem.ID ??
+              animeItem.category_id ??
+              animeItem.CategoryID ??
+              animeItem.Id ??
+              animeItem.uuid ??
+              null,
+            slug: getCategorySlug(animeItem),
+            name: getCategoryName(animeItem) || 'Animeler',
+          })
+        }
       } catch (error) {
         console.error('Kategoriler yüklenirken hata oluştu', error)
       }
@@ -382,17 +415,39 @@ function App() {
     }
   }, [])
 
+  const handlePrimaryNavSelect = (slug) => {
+    setPrimaryNavSelection((prev) => ({
+      slug,
+      version: slug === prev.slug ? prev.version + 1 : 0,
+    }))
+  if (slug === 'filmler' || slug === 'diziler' || slug === 'animeler') {
+      setActiveCategory(null)
+    }
+  }
+
   return (
     <div className="page">
       <Header
         categories={categories}
         activeCategory={activeCategory}
+        activePrimaryNav={primaryNavSelection.slug}
         onOpenAuth={setAuthMode}
         onSelectCategory={setActiveCategory}
+        onPrimaryNavSelect={handlePrimaryNavSelect}
       />
       <Routes>
-        <Route path="/" element={<HomePage selectedCategory={activeCategory} />} />
+        <Route
+          path="/"
+          element={
+            <HomePage
+              selectedCategory={activeCategory}
+              primaryNavSelection={primaryNavSelection}
+              animeCategory={animeCategory}
+            />
+          }
+        />
         <Route path="/series/:seriesId" element={<SeriesDetailPage />} />
+        <Route path="/videos/:videoId" element={<VideoDetailPage />} />
       </Routes>
       {authMode && (
         <AuthModal

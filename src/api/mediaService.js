@@ -28,5 +28,15 @@ export async function fetchVideoDetail(videoId) {
   return response.data
 }
 
+export async function fetchVideosByCategory(categoryId, { page = 1, limit = 10 } = {}) {
+  if (!categoryId) {
+    throw new Error('Kategori kimliği gerekli')
+  }
+  const response = await client.get(`/v1/content/categories/${categoryId}/videos`, {
+    params: { page, limit },
+  })
+  return response.data
+}
+
 export { fetchSeriesList, fetchSeriesDetail, fetchSeriesByCategory }
 
